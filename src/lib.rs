@@ -18,6 +18,36 @@ fn _verify_fbx_header(reader: &mut io::Read) -> io::Result<usize> {
     }
 }
 
+fn _read_u32(reader: &mut io::Read) -> io::Result<u32> {
+    let mut version_buffer = [0 as u8; 4];
+    try!(reader.read_exact(&mut version_buffer));
+
+    let value: u32 = unsafe { mem::transmute(version_buffer) };
+    Ok(value)
+}
+
+fn _read_u8(reader: &mut io::Read) -> io::Result<u8> {
+    let mut version_buffer = [0 as u8; 1];
+    try!(reader.read_exact(&mut version_buffer));
+
+    Ok(version_buffer[0])
+}
+
+fn _read_string(reader: &mut io::Read) -> io::Result<String> {
+    let mut string = String::new();
+
+    let mut len = try!(_read_u8(reader));
+
+    while len > 0 {
+        len -= 1;
+        let mut buffer = [0 as u8; 1];
+        try!(reader.read_exact(&mut buffer));
+        string.push(buffer[0] as char)
+    }
+
+    Ok(string)
+}
+
 impl FbxLoader {
     pub fn new() -> Self {
         FbxLoader { current_offset: 0 }
@@ -29,13 +59,28 @@ impl FbxLoader {
     }
 
     fn read_fbx_version(&mut self, reader: &mut io::Read) -> io::Result<u32> {
-        let mut version_buffer = [0 as u8; 4];
-        try!(reader.read_exact(&mut version_buffer));
-
-        let version: u32 = unsafe { mem::transmute(version_buffer) };
+        let version: u32 = try!(_read_u32(reader));
 
         self.current_offset += 4;
         Ok(version)
+    }
+
+    fn read_element(&mut self, reader: &mut io::Read) -> io::Result<Option<usize>> {
+        // [0] = offset at which this block ends - u32
+        let end_offset = try!(_read_u32(reader));
+
+        if end_offset == 0 {
+            return Ok(None)
+        }
+
+        // [1] = number of props in the scope -  u32
+        // [2] = length of the property list - u32
+        let property_count  = try!(_read_u32(reader));
+        let property_length = try!(_read_u32(reader));
+
+
+
+        Ok(None)
     }
 
     pub fn parse(&mut self, reader: &mut io::Read) -> io::Result<()> {
@@ -48,11 +93,20 @@ impl FbxLoader {
 #[cfg(test)]
 mod tests {
     use std::io;
-    use super::_verify_fbx_header;
+    use super::{ _read_string, _verify_fbx_header };
     use super::*;
 
     #[test]
-    fn test_assert_sequence_ok() {
+    fn test_read_string() {
+        // The length of the string is indicated by a byte value before it
+        let string = "\x08A string".as_bytes();
+
+        let mut reader = io::Cursor::new(string);
+        assert_eq!(_read_string(&mut reader).unwrap(), "A string");
+    }
+
+    #[test]
+    fn test_header_ok() {
         let correct_fbx_header = vec![0x4b, 0x61, 0x79, 0x64,
                                    0x61, 0x72, 0x61, 0x20,
                                    0x46, 0x42, 0x58, 0x20,
@@ -67,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_assert_sequence_fail() {
+    fn test_header_fail() {
         let incorrect_fbx_header = vec![0xab, 0x61, 0x79, 0x64,
                                    0x61, 0x92, 0x61, 0x20,
                                    0x46, 0x42, 0x58, 0x20,
