@@ -1,5 +1,6 @@
 use std::io;
 use std::io::ErrorKind;
+use std::mem;
 
 pub fn verify_fbx_header(reader: &mut io::Read) -> io::Result<()> {
     let expected_header = "Kaydara FBX Binary\x20\x20\x00\x1a\x00";
@@ -13,8 +14,18 @@ pub fn verify_fbx_header(reader: &mut io::Read) -> io::Result<()> {
     }
 }
 
+pub fn read_fbx_version(reader: &mut io::Read) -> io::Result<u32> {
+    let mut version_buffer = [0 as u8; 4];
+    try!(reader.read_exact(&mut version_buffer));
+
+    let version: u32 = unsafe { mem::transmute(version_buffer) };
+    Ok(version)
+}
+
 pub fn parse(reader: &mut io::Read) -> io::Result<()> {
     try!(verify_fbx_header(reader));
+
+    let fbx_version = try!(read_fbx_version(reader));
 
     Ok(())
 }
@@ -51,6 +62,16 @@ mod tests {
         let mut reader = io::Cursor::new(incorrect_fbx_header);
 
         assert!(verify_fbx_header(&mut reader).is_err());
+    }
+
+    #[test]
+    fn test_read_version() {
+        let version = vec![0x84, 0x1c, 0x00, 0x00];
+
+        let mut reader = io::Cursor::new(version);
+
+        assert_eq!(read_fbx_version(&mut reader).unwrap(), 7300);
+
     }
 
     #[test]
