@@ -1,0 +1,6 @@
+[package]
+name = "fbx"
+version = "0.1.0"
+authors = ["Sam Giles <sam.e.giles@gmail.com>"]
+
+[dependencies]
