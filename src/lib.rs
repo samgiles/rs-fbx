@@ -52,4 +52,17 @@ mod tests {
 
         assert!(verify_fbx_header(&mut reader).is_err());
     }
+
+    #[test]
+    fn test_parse_rejects_invalid_fbx() {
+        let incorrect_fbx = vec![0xab, 0x61, 0x79, 0x64,
+                                   0x61, 0x92, 0x61, 0x20,
+                                   0x46, 0x42, 0x58, 0x20,
+                                   0x42, 0x19, 0x6e, 0x61,
+                                   0x72, 0x79, 0x20, 0x20];
+
+        let mut reader = io::Cursor::new(incorrect_fbx);
+
+        assert!(parse(&mut reader).is_err());
+    }
 }
