@@ -91,7 +91,6 @@ impl FbxLoader {
         let property_length = try!(read_u32(reader)) as usize;
 
         let element_id = try!(read_ubyte_string(reader));
-        println!("{}", element_id);
         let mut element_properties: Vec<PropertyType> = Vec::with_capacity(property_count);
 
         for index in 0..property_count {
@@ -118,7 +117,7 @@ impl FbxLoader {
                     PropertyType::I64(try!(read_i64(reader)))
                 },
                 0x52 /* binary data */ => {
-                    PropertyType::BinaryData(try!(read_u8_array(reader)))
+                    PropertyType::BinaryData(try!(read_binary_data(reader)))
                 },
                 0x53 /* string data */ => {
                     PropertyType::StringData(try!(read_string(reader)))
@@ -146,7 +145,6 @@ impl FbxLoader {
                 }
             };
 
-            println!("  {:?}", property);
 
             element_properties.push(property);
         }
@@ -190,7 +188,6 @@ impl FbxLoader {
         let mut root_elements = Vec::new();
 
         loop {
-            println!("Reading top level el");
             let element = try!(self.read_element(reader));
 
             match element {

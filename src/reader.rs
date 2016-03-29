@@ -2,6 +2,8 @@ use std::io;
 use std::io::ErrorKind;
 use std::mem;
 
+use flate2::read::ZlibDecoder;
+
 pub fn read_u8(reader: &mut io::Read) -> io::Result<u8> {
     let mut buffer = [0 as u8; 1];
     try!(reader.read_exact(&mut buffer));
@@ -57,6 +59,7 @@ pub fn read_f64(reader: &mut io::Read) -> io::Result<f64> {
     Ok(value)
 }
 
+
 macro_rules! read_array {
     ($reader:expr, $len:expr, $t:ty, $buffer:expr) => {
         {
@@ -77,10 +80,21 @@ macro_rules! read_array {
     };
 }
 
+pub fn read_binary_data(reader: &mut io::Read) -> io::Result<Vec<u8>> {
+    let len = try!(read_u32(reader));
+    read_bytes(reader, len as usize)
+}
+
+pub fn read_bytes(reader: &mut io::Read, len: usize) -> io::Result<Vec<u8>> {
+    read_array!(reader, len, u8, [0 as u8; 1])
+}
+
 pub fn read_u8_array(reader: &mut io::Read) -> io::Result<Vec<u8>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, u8, [0 as u8; 1])
     } else {
         read_array!(reader, len, u8, [0 as u8; 1])
     }
@@ -89,7 +103,9 @@ pub fn read_u8_array(reader: &mut io::Read) -> io::Result<Vec<u8>> {
 pub fn read_u32_array(reader: &mut io::Read) -> io::Result<Vec<u32>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, u32, [0 as u8; 4])
     } else {
         read_array!(reader, len, u32, [0 as u8; 4])
     }
@@ -98,7 +114,9 @@ pub fn read_u32_array(reader: &mut io::Read) -> io::Result<Vec<u32>> {
 pub fn read_i16_array(reader: &mut io::Read) -> io::Result<Vec<i16>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, i16, [0 as u8; 2])
     } else {
         read_array!(reader, len, i16, [0 as u8; 2])
     }
@@ -107,7 +125,9 @@ pub fn read_i16_array(reader: &mut io::Read) -> io::Result<Vec<i16>> {
 pub fn read_i32_array(reader: &mut io::Read) -> io::Result<Vec<i32>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, i32, [0 as u8; 4])
     } else {
         read_array!(reader, len, i32, [0 as u8; 4])
     }
@@ -116,7 +136,9 @@ pub fn read_i32_array(reader: &mut io::Read) -> io::Result<Vec<i32>> {
 pub fn read_i64_array(reader: &mut io::Read) -> io::Result<Vec<i64>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, i64, [0 as u8; 8])
     } else {
         read_array!(reader, len, i64, [0 as u8; 8])
     }
@@ -125,7 +147,9 @@ pub fn read_i64_array(reader: &mut io::Read) -> io::Result<Vec<i64>> {
 pub fn read_f32_array(reader: &mut io::Read) -> io::Result<Vec<f32>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, f32, [0 as u8; 4])
     } else {
         read_array!(reader, len, f32, [0 as u8; 4])
     }
@@ -134,7 +158,9 @@ pub fn read_f32_array(reader: &mut io::Read) -> io::Result<Vec<f32>> {
 pub fn read_f64_array(reader: &mut io::Read) -> io::Result<Vec<f64>> {
     let (len, encoded, compressed_length) = try!(read_array_header(reader));
     if encoded {
-        unimplemented!()
+        use std::io::Read;
+        let mut reader = ZlibDecoder::new(reader);
+        read_array!(reader, len, f64, [0 as u8; 8])
     } else {
         read_array!(reader, len, f64, [0 as u8; 8])
     }
@@ -143,7 +169,7 @@ pub fn read_f64_array(reader: &mut io::Read) -> io::Result<Vec<f64>> {
 pub fn read_array_header(reader: &mut io::Read) -> io::Result<(usize, bool, usize)> {
     Ok(
         (try!(read_u32(reader)) as usize, // Length
-         try!(read_u32(reader)) != 0,     // Encoding bool
+         try!(read_u32(reader)) == 1,     // Encoding bool
          try!(read_u32(reader)) as usize  // compressed length
         )
     )
