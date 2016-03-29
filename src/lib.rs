@@ -6,7 +6,7 @@ use reader::*;
 use std::io;
 use std::io::{ ErrorKind, SeekFrom };
 
-// at the end of each nested block, there is a NUL record to indicate
+// at the end of each nested block, there is a NULL record to indicate
 // that the sub-scope exists (i.e. to distinguish between P: and P : {})
 // this NULL record is 13 bytes long.
 const BLOCK_SENTINEL_LENGTH: usize = 13;
