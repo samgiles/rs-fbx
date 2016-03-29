@@ -1,5 +1,4 @@
 use std::io;
-use std::io::ErrorKind;
 use std::mem;
 
 use flate2::read::ZlibDecoder;
@@ -90,40 +89,18 @@ pub fn read_bytes(reader: &mut io::Read, len: usize) -> io::Result<Vec<u8>> {
 }
 
 pub fn read_u8_array(reader: &mut io::Read) -> io::Result<Vec<u8>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
+    let (len, encoded, _) = try!(read_array_header(reader));
     if encoded {
         use std::io::Read;
         let mut reader = ZlibDecoder::new(reader);
         read_array!(reader, len, u8, [0 as u8; 1])
     } else {
         read_array!(reader, len, u8, [0 as u8; 1])
-    }
-}
-
-pub fn read_u32_array(reader: &mut io::Read) -> io::Result<Vec<u32>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
-    if encoded {
-        use std::io::Read;
-        let mut reader = ZlibDecoder::new(reader);
-        read_array!(reader, len, u32, [0 as u8; 4])
-    } else {
-        read_array!(reader, len, u32, [0 as u8; 4])
-    }
-}
-
-pub fn read_i16_array(reader: &mut io::Read) -> io::Result<Vec<i16>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
-    if encoded {
-        use std::io::Read;
-        let mut reader = ZlibDecoder::new(reader);
-        read_array!(reader, len, i16, [0 as u8; 2])
-    } else {
-        read_array!(reader, len, i16, [0 as u8; 2])
     }
 }
 
 pub fn read_i32_array(reader: &mut io::Read) -> io::Result<Vec<i32>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
+    let (len, encoded, _) = try!(read_array_header(reader));
     if encoded {
         use std::io::Read;
         let mut reader = ZlibDecoder::new(reader);
@@ -134,7 +111,7 @@ pub fn read_i32_array(reader: &mut io::Read) -> io::Result<Vec<i32>> {
 }
 
 pub fn read_i64_array(reader: &mut io::Read) -> io::Result<Vec<i64>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
+    let (len, encoded, _) = try!(read_array_header(reader));
     if encoded {
         use std::io::Read;
         let mut reader = ZlibDecoder::new(reader);
@@ -145,7 +122,7 @@ pub fn read_i64_array(reader: &mut io::Read) -> io::Result<Vec<i64>> {
 }
 
 pub fn read_f32_array(reader: &mut io::Read) -> io::Result<Vec<f32>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
+    let (len, encoded, _) = try!(read_array_header(reader));
     if encoded {
         use std::io::Read;
         let mut reader = ZlibDecoder::new(reader);
@@ -156,7 +133,7 @@ pub fn read_f32_array(reader: &mut io::Read) -> io::Result<Vec<f32>> {
 }
 
 pub fn read_f64_array(reader: &mut io::Read) -> io::Result<Vec<f64>> {
-    let (len, encoded, compressed_length) = try!(read_array_header(reader));
+    let (len, encoded, _) = try!(read_array_header(reader));
     if encoded {
         use std::io::Read;
         let mut reader = ZlibDecoder::new(reader);

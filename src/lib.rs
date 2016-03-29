@@ -5,7 +5,6 @@ use reader::*;
 
 use std::io;
 use std::io::{ ErrorKind, SeekFrom };
-use std::mem;
 
 // at the end of each nested block, there is a NUL record to indicate
 // that the sub-scope exists (i.e. to distinguish between P: and P : {})
@@ -88,12 +87,12 @@ impl FbxLoader {
         // [1] = number of props in the scope -  u32
         // [2] = length of the property list - u32
         let property_count  = try!(read_u32(reader)) as usize;
-        let property_length = try!(read_u32(reader)) as usize;
+        let _ = try!(read_u32(reader));
 
         let element_id = try!(read_ubyte_string(reader));
         let mut element_properties: Vec<PropertyType> = Vec::with_capacity(property_count);
 
-        for index in 0..property_count {
+        for _ in 0..property_count {
             let data_type = try!(read_u8(reader));
 
             // assumes little endian
