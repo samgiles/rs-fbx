@@ -1,29 +1,49 @@
+extern crate flate2;
 mod reader;
 
 use reader::*;
 
 use std::io;
-use std::io::ErrorKind;
+use std::io::{ ErrorKind, SeekFrom };
 use std::mem;
 
+// at the end of each nested block, there is a NUL record to indicate
+// that the sub-scope exists (i.e. to distinguish between P: and P : {})
+// this NULL record is 13 bytes long.
+const BLOCK_SENTINEL_LENGTH: usize = 13;
 
-
-pub struct FbxLoader {
-   current_offset: usize
+#[derive(Debug)]
+pub struct FbxElement {
+    id: String,
+    properties: Vec<PropertyType>,
+    elements: Vec<FbxElement>,
 }
 
-fn _verify_fbx_header(reader: &mut io::Read) -> io::Result<usize> {
+impl FbxElement {
+    fn new(id: String, properties: Vec<PropertyType>, elements: Vec<FbxElement>) -> Self {
+        FbxElement {
+            id: id,
+            properties: properties,
+            elements: elements,
+        }
+    }
+}
+
+pub struct FbxLoader;
+
+fn _verify_fbx_header(reader: &mut io::Read) -> io::Result<()> {
     let expected_header = "Kaydara FBX Binary\x20\x20\x00\x1a\x00";
     let mut header_buffer = [0 as u8; 23];
     try!(reader.read_exact(&mut header_buffer));
 
     if header_buffer == expected_header.as_bytes() {
-        Ok(23)
+        Ok(())
     } else {
         Err(io::Error::new(ErrorKind::InvalidData, "Invalid FBX header"))
     }
 }
 
+#[derive(Debug)]
 pub enum PropertyType {
     I16(i16),
     Bool(bool),
@@ -45,27 +65,24 @@ pub enum PropertyType {
 
 impl FbxLoader {
     pub fn new() -> Self {
-        FbxLoader { current_offset: 0 }
+        FbxLoader
     }
 
-    fn verify_fbx_header(&mut self, reader: &mut io::Read) -> io::Result<()> {
-        self.current_offset += try!(_verify_fbx_header(reader));
-        Ok(())
+    fn verify_fbx_header(&self, reader: &mut io::Read) -> io::Result<()> {
+        _verify_fbx_header(reader)
     }
 
-    fn read_fbx_version(&mut self, reader: &mut io::Read) -> io::Result<u32> {
+    fn read_fbx_version(&self, reader: &mut io::Read) -> io::Result<u32> {
         let version: u32 = try!(read_u32(reader));
-
-        self.current_offset += 4;
         Ok(version)
     }
 
-    fn read_element(&mut self, reader: &mut io::Read) -> io::Result<Option<usize>> {
+    fn read_element<T: io::Read + io::Seek>(&self, reader: &mut T) -> io::Result<Option<FbxElement>> {
         // [0] = offset at which this block ends - u32
-        let end_offset = try!(read_u32(reader));
+        let end_offset = try!(read_u32(reader)) as u64;
 
         if end_offset == 0 {
-            return Ok(None)
+            return Ok(None);
         }
 
         // [1] = number of props in the scope -  u32
@@ -73,15 +90,15 @@ impl FbxLoader {
         let property_count  = try!(read_u32(reader)) as usize;
         let property_length = try!(read_u32(reader)) as usize;
 
-        let element_id = try!(read_string(reader));
-        let element_property_types: Vec<u8> = Vec::with_capacity(property_count);
-        let element_property_data:  Vec<Option<()>> = Vec::with_capacity(property_count);
+        let element_id = try!(read_ubyte_string(reader));
+        println!("{}", element_id);
+        let mut element_properties: Vec<PropertyType> = Vec::with_capacity(property_count);
 
         for index in 0..property_count {
             let data_type = try!(read_u8(reader));
 
             // assumes little endian
-            let _ = match data_type {
+            let property = match data_type {
                 0x59 /* i16 */ => {
                     PropertyType::I16(try!(read_i16(reader)))
                 },
@@ -125,21 +142,69 @@ impl FbxLoader {
                     PropertyType::ArrayU8(try!(read_u8_array(reader)))
                 },
                 _ => {
-                    panic!("unknown property type - invalid FBX file")
+                    panic!("unknown property type 0x{:02x} - invalid FBX file", data_type)
                 }
             };
+
+            println!("  {:?}", property);
+
+            element_properties.push(property);
         }
 
 
+        let mut child_elements = Vec::new();
 
-        Ok(None)
+        if try!(self.position(reader)) < end_offset {
+            while try!(self.position(reader)) < end_offset - (BLOCK_SENTINEL_LENGTH as u64) {
+                match try!(self.read_element(reader)) {
+                    Some(element) => {
+                        child_elements.push(element);
+                    },
+                    _ => { }
+                }
+            }
+
+            let mut empty_block = [0 as u8; BLOCK_SENTINEL_LENGTH];
+            try!(reader.read_exact(&mut empty_block));
+            assert!(empty_block == [0 as u8; BLOCK_SENTINEL_LENGTH]);
+        }
+
+        if try!(self.position(reader)) != end_offset {
+            return Err(
+                io::Error::new(ErrorKind::InvalidData,
+                               "Did not reach the end of the scope, corrupt FBX?")
+                );
+        }
+
+        Ok(Some(FbxElement::new(element_id, element_properties, child_elements)))
     }
 
-    pub fn parse(&mut self, reader: &mut io::Read) -> io::Result<()> {
-        try!(self.verify_fbx_header(reader));
-        let fbx_version = try!(self.read_fbx_version(reader));
+    fn position<T: io::Read + io::Seek>(&self, reader: &mut T) -> io::Result<u64> {
+        reader.seek(SeekFrom::Current(0))
+    }
 
-        Ok(()) }
+    pub fn parse<T: io::Read + io::Seek>(&self, reader: &mut T) -> io::Result<FbxElement> {
+        try!(self.verify_fbx_header(reader));
+        let _ = try!(self.read_fbx_version(reader));
+
+        let mut root_elements = Vec::new();
+
+        loop {
+            println!("Reading top level el");
+            let element = try!(self.read_element(reader));
+
+            match element {
+                Some(element) => {
+                    root_elements.push(element);
+                },
+                None => {
+                    break;
+                }
+            }
+        }
+
+        Ok(FbxElement::new("".to_owned(), Vec::new(), root_elements))
+    }
 }
 
 #[cfg(test)]
@@ -160,9 +225,7 @@ mod tests {
                                    0x00, 0x1a, 0x00 ];
 
         let mut reader = io::Cursor::new(correct_fbx_header);
-        let result = _verify_fbx_header(&mut reader);
-
-        assert_eq!(result.unwrap(), 23);
+        _verify_fbx_header(&mut reader).unwrap();
     }
 
     #[test]

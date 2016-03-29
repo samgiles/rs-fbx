@@ -140,7 +140,8 @@ pub fn read_f64_array(reader: &mut io::Read) -> io::Result<Vec<f64>> {
     }
 }
 
-pub fn read_array_header(reader: &mut io::Read) -> io::Result<(usize, bool, usize)> { Ok(
+pub fn read_array_header(reader: &mut io::Read) -> io::Result<(usize, bool, usize)> {
+    Ok(
         (try!(read_u32(reader)) as usize, // Length
          try!(read_u32(reader)) != 0,     // Encoding bool
          try!(read_u32(reader)) as usize  // compressed length
@@ -148,14 +149,21 @@ pub fn read_array_header(reader: &mut io::Read) -> io::Result<(usize, bool, usiz
     )
 }
 
-
-
-pub fn read_string(reader: &mut io::Read) -> io::Result<String> {
-    let len = try!(read_u8(reader)) as usize;
-
+fn _read_string_len(reader: &mut io::Read, len: usize) -> io::Result<String> {
     let bytes: io::Result<Vec<u8>> = read_array!(reader, len, u8, [0 as u8; 1]);
     let string = unsafe { String::from_utf8_unchecked(try!(bytes)) };
     Ok(string)
+}
+
+pub fn read_ubyte_string(reader: &mut io::Read) -> io::Result<String> {
+    let len = try!(read_u8(reader)) as usize;
+    _read_string_len(reader, len)
+}
+
+
+pub fn read_string(reader: &mut io::Read) -> io::Result<String> {
+    let len = try!(read_u32(reader)) as usize;
+    _read_string_len(reader, len)
 }
 
 #[cfg(test)]
@@ -166,7 +174,7 @@ mod tests {
     #[test]
     fn test_read_string() {
         // The length of the string is indicated by a byte value before it
-        let string = "\x08A string".as_bytes();
+        let string = "\x08\x00\x00\x00A string".as_bytes();
 
         let mut reader = io::Cursor::new(string);
         assert_eq!(read_string(&mut reader).unwrap(), "A string");
