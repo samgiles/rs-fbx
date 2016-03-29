@@ -7,6 +7,8 @@ this is.  It's a WIP.
 
 *Warning: This is a work in progress!*
 
+There also exists: https://github.com/l1048576/fbx_direct
+
 
 # Usage
 
